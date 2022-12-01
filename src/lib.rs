@@ -63,6 +63,8 @@ use qemu_exit::QEMUExit;
 pub(crate) use crate::arch::*;
 pub(crate) use crate::config::*;
 pub use crate::syscalls::*;
+use crate::net::executor::block_on;
+use crate::net::{AsyncSocket, Handle};
 
 #[macro_use]
 mod macros;
@@ -286,7 +288,19 @@ extern "C" fn initd(_arg: usize) {
 	core_scheduler().reschedule();
 
 	#[cfg(not(test))]
-	unsafe {
+	unsafe {loop{
+                let socket = AsyncSocket::new();
+                let port: u16 = 1234;
+                info!("Opening port {:?}", port);
+                let (addr, port) =  block_on(socket.accept(port), None).unwrap().unwrap();
+                info!("addr: {:?}", addr);
+                let mut buffer: &mut [u8] = &mut [0; 1000];
+                let read: usize = block_on(socket.read(buffer), None).unwrap().unwrap();
+                info!("read {:?} bytes", read);
+                //TODO: add parsing and database code
+                //info!("read: {:?}", buffer);
+                let new_buf: &[u8] = b"HTTP/1.1 200 OK\nContent-Type: text/plain; charset=UTF-8\nContent-Length: 12\n\nFROM-KERNEL\n";
+                let write: usize = block_on(socket.write(new_buf), None).unwrap().unwrap();}
 		// And finally start the application.
 		runtime_entry(argc, argv, environ)
 	}
