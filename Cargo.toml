@@ -84,6 +84,10 @@ shell-words = { version = "1.1", default-features = false }
 qemu-exit = "3.0"
 futures-lite = { version = "1.11", default-features = false, optional = true }
 async-task = { version = "4.3", default-features = false, optional = true }
+db = { path="./db" }
+httparse = { version="1.8.0", default-features = false }
+wyhash = { version="0.5.0", default-feature = false }
+#arch = "0.0.0"
 
 [dependencies.smoltcp]
 version = "0.8"
