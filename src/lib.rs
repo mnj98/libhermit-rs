@@ -65,12 +65,20 @@ use qemu_exit::QEMUExit;
 pub(crate) use crate::arch::*;
 pub(crate) use crate::config::*;
 pub use crate::syscalls::*;
+
+/* start of includes for DB sockets */
 use crate::net::executor::block_on;
 use crate::net::{AsyncSocket, Handle};
 pub use alloc::vec::Vec;
 use hashbrown::HashMap;
 use core::str;
 use alloc::string::String;
+use wyhash::wyhash;
+use core::{
+    ptr,
+    sync::atomic::{AtomicU8, Ordering::Relaxed},
+};
+/* end of include for DB socket */
 
 // Used for integration test status.
 #[doc(hidden)]
@@ -258,9 +266,10 @@ extern "C" {
 }
 
 #[no_mangle]
-pub fn sys_tcp_stream_read(buffer: &mut [u8]) -> Result<usize, ()> {
-    let socket = AsyncSocket::from(handle);
-	block_on(socket.read(buffer), None)?.map_err(|_| ());
+extern "C" fn db_tcp_stream_read(socket: &AsyncSocket ,buffer:&mut [u8] ) -> Result<usize, ()> {
+    //let socket = AsyncSocket::from(handle);
+	//block_on(socket.read(buffer), None)?.map_err(|_| ());
+    //let buffer = unsafe { buf as &[u8] };
     let seed = 7;
     let len = buffer.len();
     if len > 3{
@@ -304,15 +313,34 @@ SET:Hi world";
                         arch::output_message_buf(&val[..]);
                         arch::output_message_buf(b"\n\n\n");
 
+                        //let new_buf: &[u8] = b"HTTP/1.1 200 OK\nContent-Type: text/plain; charset=UTF-8\nContent-Length: 7\n\nStored\n";
+                        let new_buf: &[u8] = b"HTTP/1.1 200 OK\nContent-Type: text/plain; charset=UTF-8\nContent-Length: 7\n\nSTORED\n";
+                        let write: usize = block_on(socket.write(new_buf), None).unwrap().unwrap();
                         
-                    } else if v.contains("POP") {
+                    } else if v.contains("GET") {
+                        let key = v.split(':').nth(1).unwrap();
+                        //let value = v.split(':').nth(1).unwrap().split(',').nth(1).unwrap();
+                        let hash: i32 = wyhash(key.as_bytes(), seed) as i32;
+                        let val = db::get(hash);
                         arch::output_message_buf(b"key =");
-                        arch::output_message_buf(v.split(':').nth(1).unwrap().split(',').nth(0).unwrap().as_bytes());
+                        arch::output_message_buf(key.as_bytes());
                         arch::output_message_buf(b"\n\n\n");
                         arch::output_message_buf(b"value =");
-                        arch::output_message_buf(v.split(':').nth(1).unwrap().split(',').nth(1).unwrap().as_bytes());
+                        arch::output_message_buf(&val[..]);
                         arch::output_message_buf(b"\n\n\n");
-                    }
+                        let result = str::from_utf8(&val[..]).unwrap();
+
+                        let text = format!("HTTP/1.1 200 OK\nContent-Type: text/plain; charset=UTF-8\nContent-Length: {}\n\n{}\n", val.len() + 1, result);
+                        let new_buf: &[u8] = text.as_bytes();
+                        //let new_buf: &[u8] = b"HTTP/1.1 200 OK\nContent-Type: text/plain; charset=UTF-8\nContent-Length: 8\n\nINVALID\n";
+                        arch::output_message_buf(new_buf);
+                        let write: usize = block_on(socket.write(new_buf), None).unwrap().unwrap();
+
+                    } 
+                    /*else {
+                        let new_buf: &[u8] = b"HTTP/1.1 200 OK\nContent-Type: text/plain; charset=UTF-8\nContent-Length: 8\n\nINVALID\n";
+                        let write: usize = block_on(socket.write(new_buf), None).unwrap().unwrap();
+                    }*/
                 }
                 //db::set(3, buffer);
                 //let got: Vec<u8> = db::get(3);
@@ -370,21 +398,29 @@ extern "C" fn initd(_arg: usize) {
 
 	#[cfg(not(test))]
     unsafe {
+        loop{
                 let socket = AsyncSocket::new();
                 let port: u16 = 1234;
                 info!("Opening port {:?}", port);
                 let (addr, port) =  block_on(socket.accept(port), None).unwrap().unwrap();
                 info!("addr: {:?}", addr);
-        loop{
-                let mut buffer: &mut [u8] = &mut [0; 1024];
+                let mut buffer: &mut [u8] = &mut [0; 1000];
                 let read: usize = block_on(socket.read(buffer), None).unwrap().unwrap();
-                let buf = String::from_utf8(buffer.to_vec()).unwrap();
-
+                //const read: *const usize = rd as *const usize;
+                info!("SIZEEEEEEEEEEE: {}", read);
+                //const rd: u8 = read;
+                /*let cache: &mut [u8] = &mut [0; read];
+                    cache[0..read].copy_from_slice(&buffer[0..read]);
+                    cache[read] = 0;
+                    */
+                db_tcp_stream_read(&socket, buffer);
+                //let buf = buffer as *mut u32;
+                //scheduler::PerCoreScheduler::spawn(db_tcp_stream_read, *buffer as usize, scheduler::task::NORMAL_PRIO, 0, USER_STACK_SIZE);
                 info!("read {:?} bytes", read);
                 //TODO: add parsing and database code
                 //info!("read: {:?}", buffer);
-                let new_buf: &[u8] = b"HTTP/1.1 200 OK\nContent-Type: text/plain; charset=UTF-8\nContent-Length: 12\n\nFROM-KERNEL\n";
-                let write: usize = block_on(socket.write(new_buf), None).unwrap().unwrap();
+                //let new_buf: &[u8] = b"HTTP/1.1 200 OK\nContent-Type: text/plain; charset=UTF-8\nContent-Length: 12\n\nFROM-KERNEL\n";
+                //let write: usize = block_on(socket.write(new_buf), None).unwrap().unwrap();
         
         }
 		// And finally start the application.
