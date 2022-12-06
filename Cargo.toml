@@ -87,6 +87,7 @@ async-task = { version = "4.3", default-features = false, optional = true }
 db = { path="./db" }
 httparse = { version="1.8.0", default-features = false }
 wyhash = { version="0.5.0", default-feature = false }
+time = { version = "*", default-features = false }
 #arch = "0.0.0"
 
 [dependencies.smoltcp]

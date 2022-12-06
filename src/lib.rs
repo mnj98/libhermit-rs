@@ -49,6 +49,8 @@ extern crate aarch64;
 #[cfg(target_arch = "x86_64")]
 extern crate x86;
 
+//extern crate time;
+
 use alloc::alloc::Layout;
 use core::alloc::GlobalAlloc;
 #[cfg(feature = "smp")]
@@ -67,6 +69,8 @@ pub(crate) use crate::config::*;
 pub use crate::syscalls::*;
 
 /* start of includes for DB sockets */
+//use time::PreciseTime;
+
 use crate::net::executor::block_on;
 use crate::net::{AsyncSocket, Handle};
 pub use alloc::vec::Vec;
@@ -286,10 +290,10 @@ Content-Length: 8
 Content-Type: application/x-www-form-urlencoded
 SET:Hi world";
 */
-                arch::output_message_buf(b"got = = =   ");
-                arch::output_message_buf(buf.as_bytes());
+                //arch::output_message_buf(b"got = = =   ");
+                //arch::output_message_buf(buf.as_bytes());
 
-                arch::output_message_buf(b"\n\n ");
+                //arch::output_message_buf(b"\n\n ");
                 let val = buf.split('\n');
                 for v in val {
                     if v.contains("SET") {
@@ -306,13 +310,14 @@ SET:Hi world";
                         let hash: i32 = wyhash(key.as_bytes(), seed) as i32;
                         db::set(hash, value.as_bytes());
                         let val = db::get(hash);
+                       /* 
                         arch::output_message_buf(b"key =");
                         arch::output_message_buf(key.as_bytes());
                         arch::output_message_buf(b"\n\n\n");
                         arch::output_message_buf(b"value =");
                         arch::output_message_buf(&val[..]);
                         arch::output_message_buf(b"\n\n\n");
-
+                        */
                         //let new_buf: &[u8] = b"HTTP/1.1 200 OK\nContent-Type: text/plain; charset=UTF-8\nContent-Length: 7\n\nStored\n";
                         let new_buf: &[u8] = b"HTTP/1.1 200 OK\nContent-Type: text/plain; charset=UTF-8\nContent-Length: 7\n\nSTORED\n";
                         let write: usize = block_on(socket.write(new_buf), None).unwrap().unwrap();
@@ -322,18 +327,20 @@ SET:Hi world";
                         //let value = v.split(':').nth(1).unwrap().split(',').nth(1).unwrap();
                         let hash: i32 = wyhash(key.as_bytes(), seed) as i32;
                         let val = db::get(hash);
+                        /*
                         arch::output_message_buf(b"key =");
                         arch::output_message_buf(key.as_bytes());
                         arch::output_message_buf(b"\n\n\n");
                         arch::output_message_buf(b"value =");
                         arch::output_message_buf(&val[..]);
                         arch::output_message_buf(b"\n\n\n");
+                        */
                         let result = str::from_utf8(&val[..]).unwrap();
 
                         let text = format!("HTTP/1.1 200 OK\nContent-Type: text/plain; charset=UTF-8\nContent-Length: {}\n\n{}\n", val.len() + 1, result);
                         let new_buf: &[u8] = text.as_bytes();
                         //let new_buf: &[u8] = b"HTTP/1.1 200 OK\nContent-Type: text/plain; charset=UTF-8\nContent-Length: 8\n\nINVALID\n";
-                        arch::output_message_buf(new_buf);
+                        //arch::output_message_buf(new_buf);
                         let write: usize = block_on(socket.write(new_buf), None).unwrap().unwrap();
 
                     } 
@@ -398,16 +405,20 @@ extern "C" fn initd(_arg: usize) {
 
 	#[cfg(not(test))]
     unsafe {
+        //let start = PreciseTime::now();
+        //let end = PreciseTime::now();
         loop{
                 let socket = AsyncSocket::new();
                 let port: u16 = 1234;
-                info!("Opening port {:?}", port);
+                //info!("Opening port {:?}", port);
                 let (addr, port) =  block_on(socket.accept(port), None).unwrap().unwrap();
-                info!("addr: {:?}", addr);
-                let mut buffer: &mut [u8] = &mut [0; 1000];
+                //info!("addr: {:?}", addr);
+                //start = PreciseTime::now();
+                let microseconds = arch::processor::get_timer_ticks() + arch::get_boot_time();
+                let mut buffer: &mut [u8] = &mut [0; 500];
                 let read: usize = block_on(socket.read(buffer), None).unwrap().unwrap();
                 //const read: *const usize = rd as *const usize;
-                info!("SIZEEEEEEEEEEE: {}", read);
+                //info!("SIZEEEEEEEEEEE: {}", read);
                 //const rd: u8 = read;
                 /*let cache: &mut [u8] = &mut [0; read];
                     cache[0..read].copy_from_slice(&buffer[0..read]);
@@ -416,12 +427,15 @@ extern "C" fn initd(_arg: usize) {
                 db_tcp_stream_read(&socket, buffer);
                 //let buf = buffer as *mut u32;
                 //scheduler::PerCoreScheduler::spawn(db_tcp_stream_read, *buffer as usize, scheduler::task::NORMAL_PRIO, 0, USER_STACK_SIZE);
-                info!("read {:?} bytes", read);
+                //info!("read {:?} bytes", read);
                 //TODO: add parsing and database code
                 //info!("read: {:?}", buffer);
                 //let new_buf: &[u8] = b"HTTP/1.1 200 OK\nContent-Type: text/plain; charset=UTF-8\nContent-Length: 12\n\nFROM-KERNEL\n";
                 //let write: usize = block_on(socket.write(new_buf), None).unwrap().unwrap();
-        
+                //end = PreciseTime::now();
+                let microseconds1 = arch::processor::get_timer_ticks() + arch::get_boot_time();
+
+                info!("execution time = {} useconds \n", (microseconds1 - microseconds));
         }
 		// And finally start the application.
 		runtime_entry(argc, argv, environ)
