@@ -365,7 +365,8 @@ SET:Hi world";
 /// Entry point of a kernel thread, which initialize the libos
 #[cfg(target_os = "none")]
 extern "C" fn initd(_arg: usize) {
-	extern "C" {
+	//sys_exit(0);
+    extern "C" {
 		#[cfg(not(test))]
 		fn runtime_entry(argc: i32, argv: *const *const u8, env: *const *const u8) -> !;
 		#[cfg(feature = "newlib")]
@@ -415,8 +416,10 @@ extern "C" fn initd(_arg: usize) {
                 //info!("addr: {:?}", addr);
                 //start = PreciseTime::now();
                 let microseconds = arch::processor::get_timer_ticks() + arch::get_boot_time();
+                info!("boot_time: {}\n timer ticks = {}\n", arch::get_boot_time(), microseconds);
                 let mut buffer: &mut [u8] = &mut [0; 500];
                 let read: usize = block_on(socket.read(buffer), None).unwrap().unwrap();
+                let microseconds1 = arch::processor::get_timer_ticks() + arch::get_boot_time();
                 //const read: *const usize = rd as *const usize;
                 //info!("SIZEEEEEEEEEEE: {}", read);
                 //const rd: u8 = read;
@@ -433,9 +436,9 @@ extern "C" fn initd(_arg: usize) {
                 //let new_buf: &[u8] = b"HTTP/1.1 200 OK\nContent-Type: text/plain; charset=UTF-8\nContent-Length: 12\n\nFROM-KERNEL\n";
                 //let write: usize = block_on(socket.write(new_buf), None).unwrap().unwrap();
                 //end = PreciseTime::now();
-                let microseconds1 = arch::processor::get_timer_ticks() + arch::get_boot_time();
+                let microseconds2 = arch::processor::get_timer_ticks() + arch::get_boot_time();
 
-                info!("execution time = {} useconds \n", (microseconds1 - microseconds));
+                info!("read time = {} us\nget set time: {}us \n", (microseconds1 - microseconds), (microseconds2 - microseconds1));
         }
 		// And finally start the application.
 		runtime_entry(argc, argv, environ)
@@ -521,6 +524,7 @@ fn boot_processor_main() -> ! {
 	let core_scheduler = core_scheduler();
 	// Run the scheduler loop.
 	core_scheduler.run();
+    
 }
 
 /// Entry Point of HermitCore for an Application Processor

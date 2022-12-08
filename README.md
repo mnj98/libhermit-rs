@@ -1,71 +1,59 @@
-<img width="100" align="right" src="img/hermitcore_logo.png" />
+Procedure to Build:
 
-# RustyHermit: libhermit-rs
+1. Create a workspace
 
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://hermitcore.github.io/libhermit-rs/hermit/)
-![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)
-[![Slack Status](https://matrix.osbyexample.com:3008/badge.svg)](https://matrix.osbyexample.com:3008)
+		$ mkdir workspace
 
-_libhermit-rs_ is the kernel of the [RustyHermit](https://github.com/hermitcore/rusty-hermit) unikernel project.
+		$ cd workspace
 
-## Requirements
+2. Clone the rusty-hermit repository
 
-* [`rustup`](https://www.rust-lang.org/tools/install)
-* [NASM](https://nasm.us/) (only for SMP on x86_64)
+		$ git clone https://github.com/hermitcore/rusty-hermit.git
 
-## Building the kernel
+3. Go to the rusty-hermit folder and Clone our unikernel repository
 
-Usually the kernel will be linked as static library to your applications.
+		$ cd rusty-hermit
 
-- **Rust applications:** Instructions can be found in the [rusty-hermit](https://github.com/hermitcore/rusty-hermit) repository.
-- **For C/C++ applications:** Instructions can be found in the [hermit-playground](https://github.com/hermitcore/hermit-playground) repository.
- 
+		$ git clone https://github.com/mnj98/libhermit-rs.git
 
-### Standalone static library build
+4. Checkout the os_unikernel branch
 
-```sh
-cargo xtask build --arch x86_64
-```
+		$ cd libhermit-rs
 
-On completion, the script will print the path of `libhermit.a`.
+		$ cd git checkout os_unikernel
 
-### Control the kernel messages verbosity
+5. Build the unikernel
 
-_libhermit-rs_ uses the lightweight logging crate [log](https://github.com/rust-lang/log) to print kernel messages.
-The environment variable `HERMIT_LOG_LEVEL_FILTER` controls the verbosity. 
-You can change it by setting it at compile time to a string matching the name of a [LevelFilter](https://docs.rs/log/0.4.8/log/enum.LevelFilter.html).
-If the variable is not set, or the name doesn't match, then `LevelFilter::Info` is used by default.
+		$ cd ../examples/httpd/
 
-```sh
-$ HERMIT_LOG_LEVEL_FILTER=Debug cargo xtask build --arch x86_64
-```
+		$ cargo build -Z build-std=std,core,alloc,panic_abort --target x86_64-unknown-hermit
 
-## Credits
 
-_libhermit-rs_ is derived from following tutorials and software distributions:
+Procedure to test:
 
-1. Philipp Oppermann's [excellent series of blog posts][opp].
-2. Erik Kidd's [toyos-rs][kidd], which is an extension of Philipp Opermann's kernel.
-3. The Rust-based teaching operating system [eduOS-rs][eduos].
+1. Create a tap interface
 
-[opp]: http://blog.phil-opp.com/
-[kidd]: http://www.randomhacks.net/bare-metal-rust/
-[eduos]: http://rwth-os.github.io/eduOS-rs/
+		$ sudo ip tuntap add tap10 mode tap
 
-HermitCore's Emoji is provided for free by [EmojiOne](https://www.gfxmag.com/crab-emoji-vector-icon/).
+		$ sudo ip addr add 10.0.5.1/24 broadcast 10.0.5.255 dev tap10
 
-## License
+		$ sudo ip link set dev tap10 up
 
-Licensed under either of
+		$ sudo bash -c 'echo 1 > /proc/sys/net/ipv4/conf/tap10/proxy_arp'
 
-* Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+2. Launch the unikernel using QEMU
 
-at your option.
+		$ sudo qemu-system-x86_64 -cpu qemu64,apic,fsgsbase,rdtscp,xsave,fxsr -enable-kvm -display none -smp 1 -m 1G -serial stdio -device isa-debug-exit,iobase=0xf4,iosize=0x04 -kernel rusty-loader-x86_64 -initrd ./target/x86_64-unknown-hermit/debug/httpd -netdev tap,id=net0,ifname=tap10,script=no,downscript=no,vhost=on -device virtio-net-pci,netdev=net0,disable-legacy=on
 
-## Contribution
-
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
-
-libhermit-rs is being developed on [GitHub](https://github.com/hermitcore/libhermit-rs).
-Create your own fork, send us a pull request, and chat with us on [Slack](https://matrix.osbyexample.com:3008)
+3. Run the following commands in another terminal
+	
+	a. SET operation
+	
+	
+		$ curl --interface tap10 10.0.5.3:1234 -d "SET:os,cs5204:"
+	
+	
+	b. GET operation
+		
+	
+		$ curl --interface tap10 10.0.5.3:1234 -d "GET:os:"
